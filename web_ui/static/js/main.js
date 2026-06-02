@@ -47,8 +47,8 @@ function switchTab(tab) {
 
 function addSamples() {
     const input = document.getElementById('sra-input');
-    const ids = input.value.trim().split(/\s+/).filter(id => /^SRR\d+$/i.test(id));
-    if (!ids.length) { alert('Enter valid SRA IDs'); return; }
+    const ids = input.value.trim().split(/\s+/).filter(id => /^(SRR|ERR|DRR)\d+$/i.test(id));
+    if (!ids.length) { alert('Enter valid SRA IDs (SRR, ERR, or DRR)'); return; }
     ids.forEach(id => { if (!samples.includes(id)) { samples.push(id); renderSample(id); } });
     input.value = '';
 }
@@ -70,21 +70,38 @@ function removeSample(id) {
 
 async function uploadLocal() {
     const files = document.getElementById('local-files').files;
+    if (!files.length) { alert('Select one or more FASTQ/SRA files'); return; }
     for (let f of files) {
-        const fd = new FormData(); fd.append('file', f);
-        const res = await fetch('/api/upload', { method:'POST', body:fd });
-        if (res.ok) addLog('system','success',`Uploaded ${f.name}`);
+        const fd = new FormData();
+        fd.append('file', f);
+        try {
+            const res = await fetch('/api/upload', { method:'POST', body:fd });
+            if (res.ok) {
+                addLog('system','success',`Uploaded ${f.name}`);
+            } else {
+                addLog('system','error',`Failed to upload ${f.name}`);
+            }
+        } catch(e) {
+            addLog('system','error',`Upload error: ${e.message}`);
+        }
     }
-    loadSamples();
+    await loadSamples();
+    document.getElementById('local-files').value = ''; // clear input
 }
 
 async function loadSamples() {
     const res = await fetch('/api/samples');
     const list = await res.json();
-    document.getElementById('samples-container').innerHTML = list.map(s => 
-        `<div class="sample-chip"><i class="fas fa-vial"></i> ${s} <button onclick="removeSample('${s}')"><i class="fas fa-times"></i></button></div>`
-    ).join('');
-    samples = list;
+    const container = document.getElementById('samples-container');
+    if (list.length === 0) {
+        container.innerHTML = '<div class="empty-state">No samples</div>';
+        samples = [];
+    } else {
+        container.innerHTML = list.map(s => 
+            `<div class="sample-chip"><i class="fas fa-vial"></i> ${s} <button onclick="removeSample('${s}')"><i class="fas fa-times"></i></button></div>`
+        ).join('');
+        samples = list;
+    }
 }
 
 // Step execution
@@ -115,7 +132,7 @@ async function runAll() {
 }
 
 async function stopPipeline() {
-    if (!confirm('Stop?')) return;
+    if (!confirm('Stop current step/pipeline?')) return;
     await fetch('/api/stop', {method:'POST'});
 }
 
@@ -296,7 +313,7 @@ function updateUIState() {
 // Socket listeners
 socket.on('log_line', (data) => {
     addLog(data.step, data.level, data.message);
-    if (data.step !== undefined && steps[data.step]) document.getElementById('current-op').innerText = steps[data.step].name;
+    if (data.step !== undefined && steps[data.step]) document.getElementById('current-op').innerHTML = `<i class="fas ${steps[data.step].icon}"></i> ${steps[data.step].name}`;
 });
 socket.on('status_update', (data) => {
     const statusEl = document.getElementById(`status-${data.step}`);
@@ -330,7 +347,6 @@ socket.on('history_update', (history) => {
     ).join('');
 });
 
-// NEW: Listen for current step and sample updates
 socket.on('current_step', (data) => {
     const stepDisplay = document.getElementById('current-op');
     if (data && data.step_name) {
@@ -342,18 +358,13 @@ socket.on('current_step', (data) => {
 
 socket.on('current_sample', (data) => {
     let sampleBadge = document.getElementById('current-sample');
-    if (!sampleBadge) {
-        // Create badge if not exists
-        sampleBadge = document.createElement('span');
-        sampleBadge.id = 'current-sample';
-        sampleBadge.className = 'badge bg-info ms-3';
-        document.querySelector('.status-badge').appendChild(sampleBadge);
-    }
-    if (data && data.sample) {
-        sampleBadge.innerHTML = `<i class="fas fa-vial"></i> Sample: ${data.sample}`;
-        sampleBadge.style.display = 'inline-block';
-    } else {
-        sampleBadge.style.display = 'none';
+    if (sampleBadge) {
+        if (data && data.sample) {
+            sampleBadge.innerHTML = `<i class="fas fa-vial"></i> Sample: ${data.sample}`;
+            sampleBadge.style.display = 'inline-block';
+        } else {
+            sampleBadge.style.display = 'none';
+        }
     }
 });
 

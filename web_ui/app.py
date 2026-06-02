@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-META BGC – Flask Web Interface (with CheckM2)
+META BGC – Flask Web Interface (with CheckM2 + DFAST‑QC Taxonomy)
 Enhanced with real‑time stop and sample feedback.
 """
 
@@ -56,6 +56,7 @@ DEFAULT_OUTPUTS = {
     'assembly': os.path.join(RESULTS_DIR, '02_assembly'),
     'binning': os.path.join(RESULTS_DIR, '03_binning'),
     'checkm2': os.path.join(RESULTS_DIR, '04_bin_quality', 'checkm2'),
+    'dfast_qc': os.path.join(RESULTS_DIR, '04_bin_taxonomy'),
     'antismash': os.path.join(RESULTS_DIR, '05_bgc', 'antismash'),
     'deepbgc': os.path.join(RESULTS_DIR, '05_deepbgc'),
     'compare': os.path.join(RESULTS_DIR, '06_comparison'),
@@ -68,6 +69,7 @@ DEFAULT_INPUTS = {
     'assembly': os.path.join(RESULTS_DIR, '01_qc', 'clean_reads'),
     'binning': os.path.join(RESULTS_DIR, '02_assembly'),
     'checkm2': os.path.join(RESULTS_DIR, '03_binning'),
+    'dfast_qc': os.path.join(RESULTS_DIR, '03_binning'),
     'antismash': os.path.join(RESULTS_DIR, '03_binning'),
     'deepbgc': None,
     'compare': None,
@@ -114,7 +116,7 @@ for step_id in DEFAULT_OUTPUTS:
 
 # ---------- Step Definitions ----------
 STEPS = [
-    {'id': 'fetch_convert', 'name': 'Fetch & Convert', 'script': None, 'env': None,
+    {'id': 'fetch_convert', 'name': 'Fetch & Convert', 'script': None, 'env': 'fetch_env',
      'desc': 'Download SRA and convert to FASTQ', 'icon': 'fa-cloud-download-alt', 'color': '#3b82f6',
      'params': {
          'mirror': {'type': 'select', 'options': ['auto','ebi','ncbi'], 'default': 'auto', 'label': 'Mirror'},
@@ -158,6 +160,14 @@ STEPS = [
          'contamination': {'type': 'number', 'default': 10, 'min':0,'max':100, 'label':'Max Contamination (%)'},
          'threads': {'type': 'number', 'default': 6, 'min':1,'max':16, 'label':'Threads'}
      }},
+    {'id': 'dfast_qc', 'name': 'DFAST‑QC Taxonomy', 'script': '04_dfast_qc.sh', 'env': 'dfast_qc_db_env',
+     'desc': 'Taxonomic classification of bins', 'icon': 'fa-dna', 'color': '#10b981',
+     'params': {
+         'min_completeness': {'type': 'number', 'default': 50, 'min':0,'max':100, 'label':'Min Completeness'},
+         'max_contamination': {'type': 'number', 'default': 10, 'min':0,'max':100, 'label':'Max Contamination'},
+         'min_contig_len': {'type': 'number', 'default': 0, 'min':0,'max':10000, 'label':'Min Contig Len'},
+         'threads': {'type': 'number', 'default': 6, 'min':1,'max':16, 'label':'Threads'}
+     }},
     {'id': 'antismash', 'name': 'antiSMASH', 'script': '04_antismash.sh', 'env': 'antismash_env',
      'desc': 'BGC prediction', 'icon': 'fa-dna', 'color': '#22c55e',
      'params': {
@@ -168,6 +178,7 @@ STEPS = [
          'hmmer_strictness': {'type': 'select', 'options': ['strict','relaxed'], 'default':'strict','label':'HMM Strictness'},
          'threads': {'type': 'number', 'default': 6, 'min':1,'max':32, 'label':'Threads'}
      }},
+    # ========== DEEP BGC (with automatic summary & HTML report) ==========
     {'id': 'deepbgc', 'name': 'DeepBGC', 'script': '05_deepbgc.sh', 'env': 'deepbgc_env',
      'desc': 'Deep learning BGC detection', 'icon': 'fa-brain', 'color': '#a855f7',
      'params': {
@@ -203,7 +214,7 @@ class PipelineState:
     def __init__(self):
         self.running = False
         self.current_step = None
-        self.current_sample = None          # <-- NEW
+        self.current_sample = None
         self.step_status = {i: 'idle' for i in range(len(STEPS))}
         self.step_progress = {i: 0 for i in range(len(STEPS))}
         self.step_pid = None
@@ -211,7 +222,7 @@ class PipelineState:
         self.history = []
         self.samples = []
         self.params = {}
-        self.run_all_stop = False           # <-- NEW: flag to stop entire run_all sequence
+        self.run_all_stop = False
 
 pipeline_state = PipelineState()
 
@@ -278,6 +289,13 @@ def build_command(step_idx, params, samples):
                f"CHECKM2_CONTAMINATION={step_params.get('contamination',10)}")
         return f"{env} && bash {SCRIPT_DIR}/{step['script']} {in_dir} {out_dir} {threads}"
 
+    elif step['id'] == 'dfast_qc':
+        in_dir = get_input('dfast_qc')
+        env = (f"export DFAST_MIN_COMPLETENESS={step_params.get('min_completeness',50)} "
+               f"DFAST_MAX_CONTAMINATION={step_params.get('max_contamination',10)} "
+               f"DFAST_MIN_CONTIG_LEN={step_params.get('min_contig_len',0)}")
+        return f"{env} && bash {SCRIPT_DIR}/{step['script']} {in_dir} {out_dir} {threads}"
+
     elif step['id'] == 'antismash':
         in_dir = get_input('antismash')
         assembly_dir = get_output('assembly')
@@ -289,13 +307,27 @@ def build_command(step_idx, params, samples):
         return f"{env} && bash {SCRIPT_DIR}/{step['script']} {in_dir} {out_dir} {threads} {assembly_dir}"
 
     elif step['id'] == 'deepbgc':
+        # Main DeepBGC script
         env = (f"export PROJ_OUT={RESULTS_DIR} "
                f"DEEP_SCORE={step_params.get('score_threshold',0.5)} "
                f"DEEP_PRODIGAL={step_params.get('prodigal_mode','meta')} "
                f"DEEP_MIN_LEN={step_params.get('min_nucl_length',3000)} "
                f"DEEP_MERGE={step_params.get('merge_gap',0)} "
                f"DEEP_DETECTOR={step_params.get('detector','deepbgc')}")
-        return f"{env} && bash {SCRIPT_DIR}/{step['script']}"
+        main_cmd = f"{env} && bash {SCRIPT_DIR}/{step['script']}"
+
+        # Aggregation script – outputs to a subfolder "deepbgc_evaluation"
+        eval_dir = os.path.join(get_output('deepbgc'), 'deepbgc_evaluation')
+        # Ensure directory exists
+        os.makedirs(eval_dir, exist_ok=True)
+        summary_cmd = f"bash {SCRIPT_DIR}/05_deepbgc_summary_final.sh {get_output('deepbgc')} {eval_dir}"
+
+        # HTML report generator – reads from the evaluation folder
+        # (We have modified generate_deepbgc_report.py to accept the input directory as argument)
+        report_cmd = f"python3 {SCRIPT_DIR}/generate_deepbgc_report.py {eval_dir}"
+
+        # Chain them: main succeeds → summary → report
+        return f"{main_cmd} && {summary_cmd} && {report_cmd}"
 
     elif step['id'] == 'compare':
         anti_dir = get_output('antismash')
@@ -322,12 +354,14 @@ def terminate_process(process):
     """Forcefully kill the process group."""
     try:
         pgid = os.getpgid(process.pid)
+        # Send SIGTERM to the whole group
         os.killpg(pgid, signal.SIGTERM)
+        # Wait a moment, then SIGKILL if still alive
         time.sleep(1)
         if process.poll() is None:
             os.killpg(pgid, signal.SIGKILL)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error terminating process: {e}")
 
 def run_command(cmd, step_idx):
     step = STEPS[step_idx]
@@ -345,9 +379,8 @@ def run_command(cmd, step_idx):
     pipeline_state.step_status[step_idx] = 'running'
     pipeline_state.step_progress[step_idx] = 0
     pipeline_state.current_step = step_idx
-    pipeline_state.current_sample = None   # reset sample
+    pipeline_state.current_sample = None
 
-    # Notify frontend about current step
     socketio.emit('current_step', {
         'step_idx': step_idx,
         'step_name': step['name'],
@@ -363,9 +396,7 @@ def run_command(cmd, step_idx):
     })
 
     conda_base = os.path.expanduser('~/miniconda3')
-    if step['id'] == 'fetch_convert':
-        activate = f"source {conda_base}/etc/profile.d/conda.sh && conda activate base"
-    elif step['env'] == 'base':
+    if step['env'] == 'base':
         activate = f"source {conda_base}/etc/profile.d/conda.sh && conda activate base"
     else:
         env_path = os.path.join(BASE_DIR, 'envs', step['env'])
@@ -382,17 +413,16 @@ def run_command(cmd, step_idx):
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            preexec_fn=os.setsid
+            preexec_fn=os.setsid   # Create a new session so we can kill the whole process group
         )
         pipeline_state.step_pid = process.pid
 
-        # For multi‑sample steps, we try to detect sample name from log lines
-        # (simplified: we just show the first sample from the list if available)
         if pipeline_state.samples:
             pipeline_state.current_sample = pipeline_state.samples[0]
             socketio.emit('current_sample', {'sample': pipeline_state.current_sample})
 
         for line in iter(process.stdout.readline, ''):
+            # Check for stop request **before** processing each line
             if pipeline_state.stop_requested or pipeline_state.run_all_stop:
                 emit_log("Stop requested, terminating...", 'warning')
                 terminate_process(process)
@@ -402,10 +432,8 @@ def run_command(cmd, step_idx):
                 f.write(line + '\n')
                 f.flush()
                 emit_log(line)
-                # Try to extract sample name from common patterns
                 lower = line.lower()
                 if 'sample' in lower and ':' in lower:
-                    # crude extraction – you can refine this
                     parts = line.split()
                     for i, p in enumerate(parts):
                         if p.lower() == 'sample' and i+1 < len(parts):
@@ -420,7 +448,6 @@ def run_command(cmd, step_idx):
         process.wait()
 
     if pipeline_state.stop_requested or pipeline_state.run_all_stop:
-        # Clean up after forced stop
         pipeline_state.step_status[step_idx] = 'idle'
         pipeline_state.step_progress[step_idx] = 0
         emit_log("⏹ Step stopped by user", 'warning')
@@ -439,7 +466,6 @@ def run_command(cmd, step_idx):
     pipeline_state.current_sample = None
     pipeline_state.step_pid = None
     pipeline_state.stop_requested = False
-    # Clear step/sample display
     socketio.emit('current_step', None)
     socketio.emit('current_sample', None)
 
@@ -540,7 +566,7 @@ def run_step():
     if pipeline_state.running:
         return jsonify({'error': 'Another step is already running'}), 409
     pipeline_state.params = params
-    pipeline_state.run_all_stop = False   # reset flag
+    pipeline_state.run_all_stop = False
     thread = threading.Thread(target=step_worker, args=(step_idx, samples, params))
     thread.daemon = True
     thread.start()
@@ -588,7 +614,7 @@ def run_all():
 @app.route('/api/stop', methods=['POST'])
 def stop():
     pipeline_state.stop_requested = True
-    pipeline_state.run_all_stop = True   # also stop any queued steps
+    pipeline_state.run_all_stop = True
     return jsonify({'status': 'stopping'})
 
 @app.route('/api/upload', methods=['POST'])
@@ -655,13 +681,14 @@ if __name__ == '__main__':
     print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║                    META BGC - WEB INTERFACE                  ║
-║                  (with CheckM2 integration)                   ║
+║          (with CheckM2 + DFAST‑QC Taxonomy)                   ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  • Step 0: Fetch & Convert                                   ║
-║  • Steps 1‑8: QC, Assembly, Binning, CheckM2, antiSMASH,    ║
-║              DeepBGC, Comparison, BiG-SCAPE                   ║
+║  • Steps 1‑9: QC, Assembly, Binning, CheckM2, DFAST‑QC,     ║
+║              antiSMASH, DeepBGC, Comparison, BiG-SCAPE       ║
+║  • DeepBGC now includes automatic summary & HTML report      ║
 ║  • Real‑time step & sample display                           ║
-║  • Immediate stop on request                                 ║
+║  • Immediate stop on request (SIGTERM + SIGKILL)             ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  Access: http://localhost:5000                               ║
 ╚══════════════════════════════════════════════════════════════╝

@@ -1,0 +1,16 @@
+BiG-SCAPE
+antismash_env
+art_env
+assembly_env
+benchmark_env
+bigscape_env
+bigscape_py311
+binning_env
+checkm2_env
+deepbgc_env
+dfast_qc_db_env
+fetch_env
+kingfisher_env
+qc_env
+streamlit_env
+viz_env

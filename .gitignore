@@ -1,84 +1,6 @@
-# Conda environments
-envs/
-*.env
-
-# Data, results, logs
-data/
-results/
-logs/
-*.fastq
-*.fastq.gz
-*.sra
-*.bam
-*.sam
-*.bai
-*.fa
-*.fna
-*.gbk
-*.gff
-*.tsv
-*.csv
-
-# Databases (large)
-databases/
-*.hmm
-*.h3*
-*.dmnd
-*.bt2
-*.bt2l
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.so
-
-# IDE / OS junk
-.DS_Store
-.vscode/
-.idea/
-*.swp
-
-# Flask config (contains custom paths)
-.meta_bgc_config.json
-instance/
-
-# Log files
-*.log
-
-# Large / unwanted folders
-resultss/
-tools/
-web_ui/
-busco_downloads/
-localDB/
-reads_subset/
-ascp
-
-# Backup and Windows zone files
-*.bak
-*:Zone.Identifier
-
-# Duplicate or test files
-server.py
-webui.py
-tui_pipeline.py
-interactive_pipeline.sh
-
-# IDE
-.vscode/
-.idea/
-
-# Databases (large files)
-databases/
-*.hmm
-*.h3*
-*.dmnd
-*.bt2
-*.tar.gz
-*.bz2
-*.aria2
-# Local large folders (keep locally, ignore in Git)
+# ============================================
+# LARGE LOCAL FOLDERS (ignore in Git, keep on disk)
+# ============================================
 databases/
 tools/
 resultss/
@@ -88,21 +10,50 @@ reads_subset/
 staging_input/
 localDB/
 busco_downloads/
-web_ui/
-envs/
 ascp
 MetaBGC_Demo/
 
-# Backup and Windows zone files
+# Conda environments (full folders – large)
+envs/
+
+# ============================================
+# WEB FOLDER – KEEP TRACKED (do NOT ignore)
+# ============================================
+# web_ui/ is intentionally NOT listed here
+# envs_info/ is intentionally NOT listed here
+
+# ============================================
+# BACKUP & TEMPORARY FILES
+# ============================================
 *.bak
 *.Zone.Identifier
+*.pyc
+__pycache__/
+*.swp
+*.swo
 
-# Unused/unfinished scripts (keep locally but ignore)
+# ============================================
+# UNUSED / UNFINISHED SCRIPTS (keep locally, ignore)
+# ============================================
 server.py
 webui.py
 tui_pipeline.py
 interactive_pipeline.sh
-
-# Config with local paths
 meta_bgc_config.json
 
+# ============================================
+# IDE & SYSTEM FILES
+# ============================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ============================================
+# LOGS & TEMP OUTPUTS
+# ============================================
+*.log
+*.tmp
+.meta_bgc_config.json
+*.Zone.Identifier
+results/
