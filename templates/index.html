@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>META BGC | Ultimate Edition</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="particles-js"></div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3><i class="fas fa-sliders-h" style="color:#8b5cf6;"></i> I/O Path Configuration</h3>
+                <button class="btn-close" onclick="closeModal('settings-modal')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="settings-body" style="max-height: 60vh; overflow-y: auto;"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="resetToDefaults()">Reset to Defaults</button>
+                <button class="btn btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div class="modal-overlay" id="results-modal">
+        <div class="modal glass" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-folder-tree"></i> Results Directory</h3>
+                <button class="btn-close" onclick="closeModal('results-modal')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="results-body"></div>
+        </div>
+    </div>
+
+    <!-- Parameter Modal -->
+    <div class="modal-overlay" id="param-modal">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> <span id="param-title">Parameters</span></h3>
+                <button class="btn-close" onclick="closeModal('param-modal')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="param-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('param-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveParams()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header class="header glass">
+            <div class="brand">
+                <div class="brand-icon"><i class="fas fa-dna"></i></div>
+                <div class="brand-text">
+                    <h1>META BGC</h1>
+                    <p>Ultimate Metagenomic BGC Pipeline</p>
+                </div>
+            </div>
+            <div class="header-controls">
+                <div class="status-badge">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="status-text">Ready</span>
+                    <!-- Sample badge will be inserted here by JS -->
+                </div>
+                <button class="btn btn-settings" onclick="openSettings()">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+                <button class="btn btn-danger" id="stop-btn" disabled onclick="stopPipeline()">
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+            </div>
+        </header>
+
+        <div class="dashboard">
+            <div class="main-panel">
+                <!-- Sample Input -->
+                <div class="card glass">
+                    <div class="card-header">
+                        <h3><i class="fas fa-vials"></i> Samples</h3>
+                        <div class="input-tabs">
+                            <button class="tab-btn active" onclick="switchTab('sra')">SRA Download</button>
+                            <button class="tab-btn" onclick="switchTab('local')">Local Files</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="sra-panel">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="sra-input" placeholder="SRR123456 SRR123457 ...">
+                                <button class="btn btn-primary" onclick="addSamples()"><i class="fas fa-plus"></i> Add</button>
+                            </div>
+                        </div>
+                        <div id="local-panel" style="display:none">
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="local-files" multiple accept=".fastq,.fastq.gz">
+                                <button class="btn btn-primary" onclick="uploadLocal()"><i class="fas fa-upload"></i> Upload</button>
+                            </div>
+                        </div>
+                        <div class="samples-container" id="samples-container">
+                            <div class="empty-state">No samples</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pipeline Steps -->
+                <div class="card glass">
+                    <div class="card-header">
+                        <h3><i class="fas fa-th-large"></i> Pipeline Steps</h3>
+                        <div>
+                            <button class="btn btn-success" id="run-all-btn" onclick="runAll()">Run All</button>
+                            <button class="btn btn-secondary" onclick="resetAll()">Reset</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="steps-grid" id="steps-grid">
+                            <!-- Generated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="side-panel">
+                <!-- System Monitor -->
+                <div class="card glass">
+                    <div class="card-header">
+                        <h3><i class="fas fa-chart-line"></i> System</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="monitor-grid">
+                            <div class="monitor-item">
+                                <div class="monitor-value" id="cpu-val">0%</div>
+                                <div class="monitor-label">CPU</div>
+                                <div class="monitor-bar"><div class="monitor-fill" id="cpu-bar"></div></div>
+                            </div>
+                            <div class="monitor-item">
+                                <div class="monitor-value" id="mem-val">0%</div>
+                                <div class="monitor-label">Memory</div>
+                                <div class="monitor-bar"><div class="monitor-fill" id="mem-bar" style="background:var(--warning);"></div></div>
+                            </div>
+                            <div class="monitor-item">
+                                <div class="monitor-value" id="disk-val">0%</div>
+                                <div class="monitor-label">Disk</div>
+                                <div class="monitor-bar"><div class="monitor-fill" id="disk-bar" style="background:var(--success);"></div></div>
+                            </div>
+                            <div class="monitor-item">
+                                <div class="monitor-value" id="net-val">0</div>
+                                <div class="monitor-label">MB/s</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="card glass">
+                    <div class="card-header">
+                        <h3><i class="fas fa-history"></i> Recent</h3>
+                    </div>
+                    <div class="card-body" id="history-list" style="max-height:200px; overflow-y:auto;"></div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card glass">
+                    <div class="card-header">
+                        <h3><i class="fas fa-bolt"></i> Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="action-grid">
+                            <button class="btn btn-secondary" onclick="openModal('results-modal'); loadResults()"><i class="fas fa-folder-open"></i> Results</button>
+                            <button class="btn btn-secondary" onclick="checkAllInputs()"><i class="fas fa-check-circle"></i> Check Inputs</button>
+                            <button class="btn btn-secondary" onclick="window.open('http://localhost:8888','_blank')"><i class="fas fa-book"></i> Notebook</button>
+                            <button class="btn btn-secondary" onclick="window.open('https://github.com','_blank')"><i class="fas fa-question"></i> Help</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal -->
+        <div class="card glass" style="margin-top:1.5rem;">
+            <div class="terminal">
+                <div class="terminal-header">
+                    <div class="terminal-title"><i class="fas fa-terminal"></i> Live Log <span id="current-op" style="margin-left:1rem; color:var(--accent);"></span></div>
+                    <div>
+                        <button class="btn btn-secondary" onclick="clearLogs()" style="padding:0.25rem 0.75rem;"><i class="fas fa-eraser"></i> Clear</button>
+                        <button class="btn btn-secondary" onclick="downloadLogs()" style="padding:0.25rem 0.75rem;"><i class="fas fa-download"></i> Export</button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="terminal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+# Conda environments
+envs/
+*.env
+
+# Data, results, logs
+data/
+results/
+logs/
+*.fastq
+*.fastq.gz
+*.sra
+*.bam
+*.sam
+*.bai
+*.fa
+*.fna
+*.gbk
+*.gff
+*.tsv
+*.csv
+
+# Databases (large)
+databases/
+*.hmm
+*.h3*
+*.dmnd
+*.bt2
+*.bt2l
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.so
+
+# IDE / OS junk
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Flask config (contains custom paths)
+.meta_bgc_config.json
+instance/
+
+# Log files
+*.log
+
+# Large / unwanted folders
+resultss/
+tools/
+web_ui/
+busco_downloads/
+localDB/
+reads_subset/
+ascp
+
+# Backup and Windows zone files
+*.bak
+*:Zone.Identifier
+
+# Duplicate or test files
+server.py
+webui.py
+tui_pipeline.py
+interactive_pipeline.sh
+
+# IDE
+.vscode/
+.idea/
