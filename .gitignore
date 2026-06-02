@@ -68,3 +68,41 @@ interactive_pipeline.sh
 # IDE
 .vscode/
 .idea/
+
+# Databases (large files)
+databases/
+*.hmm
+*.h3*
+*.dmnd
+*.bt2
+*.tar.gz
+*.bz2
+*.aria2
+# Local large folders (keep locally, ignore in Git)
+databases/
+tools/
+resultss/
+logs/
+data/
+reads_subset/
+staging_input/
+localDB/
+busco_downloads/
+web_ui/
+envs/
+ascp
+MetaBGC_Demo/
+
+# Backup and Windows zone files
+*.bak
+*.Zone.Identifier
+
+# Unused/unfinished scripts (keep locally but ignore)
+server.py
+webui.py
+tui_pipeline.py
+interactive_pipeline.sh
+
+# Config with local paths
+meta_bgc_config.json
+
